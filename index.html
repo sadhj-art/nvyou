@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>百度智能云对话</title>
+    <style>
+        body { max-width: 800px; margin: 20px auto; padding: 20px; }
+        .chat-box { border: 1px solid #ddd; padding: 20px; height: 400px; overflow-y: auto; }
+        input, textarea { width: 100%; margin: 10px 0; padding: 10px; }
+        button { background: #3385ff; color: white; padding: 12px 24px; border: none; }
+    </style>
+</head>
+<body>
+<h1>自定义AI对话</h1>
+
+<!-- 提示词输入 -->
+<div>
+    <textarea id="prompt" placeholder="输入角色设定，例如：你是一个幽默的相声演员"></textarea>
+</div>
+
+<!-- 聊天区域 -->
+<div class="chat-box" id="chatBox"></div>
+
+<div>
+    <input type="text" id="message" placeholder="输入消息...">
+    <button onclick="sendMessage()">发送</button>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8888/chat";
+
+    async function sendMessage() {
+        const message = document.getElementById('message').value;
+        const prompt = document.getElementById('prompt').value || "你是一个有帮助的AI助手";
+
+        // 显示用户消息
+        addMessage(`你：${message}`);
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: message,
+                    prompt: prompt  // 发送自定义提示词
+                })
+            });
+
+            const data = await response.json();
+            addMessage(`AI：${data.reply}`);
+
+        } catch (error) {
+            addMessage(`错误：${error.message}`);
+        }
+
+        // 清空输入
+        document.getElementById('message').value = "";
+    }
+
+    function addMessage(text) {
+        const div = document.createElement('div');
+        div.style.margin = "10px 0";
+        div.style.padding = "8px";
+        div.style.backgroundColor = "#f5f5f5";
+        div.textContent = text;
+        document.getElementById('chatBox').appendChild(div);
+    }
+
+    // 回车发送
+    document.getElementById('message').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+</script>
+</body>
+</html>

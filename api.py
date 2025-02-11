@@ -1,0 +1,67 @@
+import os
+import requests
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+app = FastAPI()
+
+# 百度API配置
+BAIDU_API_KEY = os.getenv("BAIDU_API_KEY")
+BAIDU_SECRET_KEY = os.getenv("BAIDU_SECRET_KEY")
+
+class ChatRequest(BaseModel):
+    message: str
+    prompt: str = "你是一个有帮助的AI助手"  # 默认提示词
+
+def get_access_token():
+    """获取百度API的access_token"""
+    url = "https://aip.baidubce.com/oauth/2.0/token"
+    params = {
+        "grant_type": "client_credentials",
+        "client_id": BAIDU_API_KEY,
+        "client_secret": BAIDU_SECRET_KEY
+    }
+    response = requests.post(url, params=params)
+    return response.json().get("access_token")
+
+@app.post("/chat")
+async def chat_with_baidu(request: ChatRequest):
+    try:
+        # 获取access_token
+        access_token = get_access_token()
+        if not access_token:
+            raise HTTPException(status_code=500, detail="获取token失败")
+
+        # 构造请求（以文心4.0为例）
+        url = "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "messages": [
+                {"role": "system", "content": request.prompt},  # 自定义提示词
+                {"role": "user", "content": request.message}
+            ]
+        }
+
+        # 发送请求
+        response = requests.post(
+            f"{url}?access_token={access_token}",
+            json=payload,
+            headers=headers
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            return {"reply": result["result"]}
+        else:
+            raise HTTPException(status_code=500, detail=response.text)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8888)
