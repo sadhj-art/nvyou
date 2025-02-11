@@ -20,8 +20,8 @@ app.add_middleware(
 )
 
 # 百度API配置
-BAIDU_API_KEY = os.getenv("bce-v3/ALTAK-YYIcBRzWZlbvR9E2wmJfh/5a03ba85c9ef26b3317a74adc498d62654f16918")
-BAIDU_SECRET_KEY = os.getenv("469f9b318d04482aa8d3aaca211e11a3")
+BAIDU_API_KEY = os.getenv("BAIDU_API_KEY")
+BAIDU_SECRET_KEY = os.getenv("BAIDU_SECRET_KEY")
 
 class ChatRequest(BaseModel):
     message: str
