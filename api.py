@@ -1,13 +1,23 @@
-import os
-import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware  # 新增导入
 from pydantic import BaseModel
+import requests
 from dotenv import load_dotenv
+import os
 
-# 加载环境变量
 load_dotenv()
 
+# 先创建app实例
 app = FastAPI()
+
+# 立即添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 百度API配置
 BAIDU_API_KEY = os.getenv("bce-v3/ALTAK-YYIcBRzWZlbvR9E2wmJfh/5a03ba85c9ef26b3317a74adc498d62654f16918")
