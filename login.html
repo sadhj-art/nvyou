@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI聊天</title>
+    <title>登录</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -66,47 +66,13 @@
     </style>
 </head>
 <body>
-<div class="chat-container">
-    <div class="settings">
-        <select id="model">
-            <option value="ERNIE-Bot">ERNIE-Bot</option>
-            <option value="BLOOMZ-7B">BLOOMZ-7B</option>
-        </select>
-        <input type="text" id="prompt" placeholder="系统提示词（可选）">
-    </div>
-
-    <div class="chat-box" id="chatBox"></div>
-
-    <div class="input-area">
-        <input type="text" id="messageInput" placeholder="输入消息...">
-        <button onclick="sendMessage()">发送</button>
-    </div>
+<div class="login-box">
+    <h2>登录</h2>
+    <form method="POST">
+        <input type="text" name="username" placeholder="用户名" required>
+        <input type="password" name="password" placeholder="密码" required>
+        <button type="submit">登录</button>
+    </form>
 </div>
-
-<script>
-    async function sendMessage() {
-        const message = document.getElementById('messageInput').value;
-        const model = document.getElementById('model').value;
-        const prompt = document.getElementById('prompt').value;
-
-        // 显示用户消息
-        document.getElementById('chatBox').innerHTML += `<div class='user-msg'>你: ${message}</div>`;
-
-        // 调用后端接口
-        const response = await fetch('/ask', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: new URLSearchParams({
-                'message': message,
-                'model': model,
-                'prompt': prompt
-            })
-        });
-
-        const result = await response.text();
-        document.getElementById('chatBox').innerHTML += `<div class='ai-msg'>AI: ${result}</div>`;
-        document.getElementById('messageInput').value = '';
-    }
-</script>
 </body>
 </html>
