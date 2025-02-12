@@ -1,93 +1,70 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user
-import sqlite3
-import requests
+from flask import Flask, request, render_template, session
+from openai import OpenAI
+import config
+import uuid
+from datetime import timedelta
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # 设置一个复杂密钥
+app.secret_key = str(uuid.uuid4())  # 生成随机密钥
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=1)  # 会话有效期1天
 
-# 初始化登录管理
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
+client = OpenAI(
+    api_key=config.XAI_API_KEY,
+    base_url="https://api.x.ai/v1",
+)
 
-# 数据库初始化
-def init_db():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  username TEXT UNIQUE, 
-                  password TEXT)''')
-    conn.commit()
-    conn.close()
+def get_grok_response(messages):
+    try:
+        completion = client.chat.completions.create(
+            model="grok-2-latest",
+            messages=messages
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        return f"API调用出错: {str(e)}"
 
-init_db()
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    # 为每个新用户初始化设置
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+        session['history'] = []
+        session['system_prompt'] = "你是一个乐于助人的AI助手"
+        session['max_history'] = 5
 
-# 用户类
-class User(UserMixin):
-    def __init__(self, user_id):
-        self.id = user_id
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User(user_id)
-
-# 百度API配置
-BAIDU_API_KEY = "bce-v3/ALTAK-YYIcBRzWZlbvR9E2wmJfh/5a03ba85c9ef26b3317a74adc498d62654f16918"
-BAIDU_SECRET_KEY = "469f9b318d04482aa8d3aaca211e11a3"
-ACCESS_TOKEN_URL = f"https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={BAIDU_API_KEY}&client_secret={BAIDU_SECRET_KEY}"
-
-def get_access_token():
-    response = requests.get(ACCESS_TOKEN_URL)
-    return response.json().get('access_token')
-
-# 登录路由
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
-        c.execute("SELECT id FROM users WHERE username=? AND password=?", (username, password))
-        user = c.fetchone()
-        conn.close()
-        if user:
-            login_user(User(user[0]))
-            return redirect(url_for('chat'))
-        else:
-            return "登录失败"
-    return render_template('login.html')
-
-# 聊天页面
-@app.route('/chat')
-@login_required
+@app.route('/', methods=['GET', 'POST'])
 def chat():
-    return render_template('chat.html', uid=session['_user_id'])
+    if request.method == 'POST':
+        # 更新用户设置
+        if 'set_prompt' in request.form:
+            session['system_prompt'] = request.form['system_prompt']
+            session['max_history'] = int(request.form['max_history'])
 
-# 处理AI请求
-@app.route('/ask', methods=['POST'])
-@login_required
-def ask():
-    user_message = request.form['message']
-    prompt = request.form.get('prompt', '')
-    model = request.form.get('model', 'ERNIE-Bot')
-    uid = session['_user_id']
+        # 处理聊天消息
+        elif 'message' in request.form:
+            user_message = request.form['message']
 
-    # 组合提示词
-    full_message = f"{prompt}\n用户{uid}: {user_message}"
+            # 构建消息历史
+            messages = [{"role": "system", "content": session['system_prompt']}]
+            messages += session['history'][-session['max_history']*2:]
+            messages.append({"role": "user", "content": user_message})
 
-    # 调用百度API
-    access_token = get_access_token()
-    url = f"https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions?access_token={access_token}"
-    headers = {'Content-Type': 'application/json'}
-    data = {
-        "messages": [{"role": "user", "content": full_message}],
-        "user_id": str(uid)  # 使用UID保持会话独立
-    }
-    response = requests.post(url, headers=headers, json=data)
-    return response.json().get('result', '请求失败')
+            # 获取Grok回复
+            ai_response = get_grok_response(messages)
+
+            # 保存到历史记录（保留最近的max_history*2条）
+            session['history'].extend([
+                {"role": "user", "content": user_message},
+                {"role": "assistant", "content": ai_response}
+            ])
+            session['history'] = session['history'][-session['max_history']*2:]
+            session.modified = True
+
+    return render_template('index.html',
+                           history=session['history'],
+                           system_prompt=session['system_prompt'],
+                           max_history=session['max_history'])
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
